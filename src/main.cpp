@@ -110,7 +110,7 @@ void loop() {
 		process_bluetooth();
 	}
 
-	motor_code(dt);
+	if(start) motor_code(dt);
 
 	delay(10);
 
@@ -125,7 +125,7 @@ void read_bluetooth() {
 }
 
 void process_bluetooth() {
-	switch(val) {
+	switch((int)v[1]) {
 		case (int)BLUETOOTH_CODE::LeftSpeed:
 			lsp_base = v[2];
 			break;
