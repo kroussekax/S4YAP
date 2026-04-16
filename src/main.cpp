@@ -1,6 +1,8 @@
 #include <Arduino.h>
 
 #include "BluetoothSerial.h"
+#include "HardwareSerial.h"
+#include "esp32-hal-gpio.h"
 
 #define TOTAL_IR 5
 #define paling_kiri 0
@@ -21,8 +23,8 @@ int ir[TOTAL_IR] = {
 
 	32,
 
-	25, 
 	33,
+	25, 
 };
 
 float constants[3]; // kd ki kp
@@ -38,15 +40,15 @@ int enB = 18, in3 = 19, in4 = 23;   // Motor B
 
 int freq = 1000, resol = 8;
 
-int error{0};
+float error{0};
 int previous_error{0};
 
-int integral{0};
-int derivative{0};
+float integral{0};
+float derivative{0};
 
 int lsp_base{0}, rsp_base{0};
 
-bool start{false};
+bool start{true};
 
 BluetoothSerial SerialBT;
 int val, cnt = 0;
@@ -90,12 +92,12 @@ void setup() {
   ledcWrite(enA, 0);
   ledcWrite(enB, 0);
 
-  lsp_base = 150;
-  rsp_base = 150;
+  lsp_base = 55;
+  rsp_base = 55;
 
   constants[KI] = 0;
   constants[KD] = 0;
-  constants[KP] = 1;
+  constants[KP] = 50;
 
   delay(1000);
 }
@@ -103,12 +105,6 @@ void setup() {
 void loop() {
 	int64_t now = esp_timer_get_time();
 	float dt = (now - lastTime) / 1e6f;
-
-	if (SerialBT.available()){
-		while(SerialBT.available() == 0);
-		read_bluetooth();
-		process_bluetooth();
-	}
 
 	if(start) motor_code(dt);
 
@@ -142,7 +138,7 @@ void process_bluetooth() {
 			constants[KD] = v[2];
 			break;
 		case (int)BLUETOOTH_CODE::Start:
-			start = !start;
+			start = true;
 			break;
 		default:
 			break;
@@ -150,18 +146,25 @@ void process_bluetooth() {
 }
 
 void calculate_error() {
-	// error calculation methods
-	// recheck for if its high or low later on pls dont forget this
-	if(digitalRead(ir[paling_kiri]) == HIGH)
-		error = -2;
-	if(digitalRead(ir[kiri]) == HIGH)
-		error = -1;
-	if(digitalRead(ir[center]) == HIGH)
-		error = 0;
-	if(digitalRead(ir[kanan]) == HIGH)
-		error = 1;
-	if(digitalRead(ir[paling_kanan]) == HIGH)
-		error = 2;
+	float sum = 0;
+	int count = 0;
+
+	int weights[TOTAL_IR] = {-2, -1, 0, 1, 2};
+
+	for (int i = 0; i < TOTAL_IR; i++) {
+		if (digitalRead(ir[i]) == HIGH) {
+			sum += weights[i];
+			count++;
+		}
+	}
+
+	if (count == 0) {
+		// no sensor active, keep previous error
+		// so the robot remembers which way to turn
+		return;
+	}
+
+	error = sum / count;  // weighted average
 }
 
 float calculate_pid(float dt) {
@@ -173,21 +176,18 @@ float calculate_pid(float dt) {
 }
 
 void motor_code(float dt) {
-	float lsp = lsp_base - calculate_pid(dt);
-	float rsp = rsp_base + calculate_pid(dt);
-    if (lsp > 255) {
-      lsp = 255;
-    }
-    if (lsp < -255) {
-      lsp = -255;
-    }
-    if (rsp > 255) {
-      rsp = 255;
-    }
-    if (rsp < -255) {
-      rsp = -255;
-    }
-	motor_both_wheel(lsp, rsp);
+	if (dt <= 0) return;
+
+	calculate_error();
+	float pid = calculate_pid(dt);
+
+	float lsp = lsp_base - pid;
+	float rsp = rsp_base + pid;
+
+	lsp = constrain(lsp, -255, 255);
+	rsp = constrain(rsp, -255, 255);
+
+	motor_both_wheel(rsp, lsp);
 }
 
 void motor_move(int dir) {
