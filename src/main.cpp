@@ -1,159 +1,47 @@
 #include <Arduino.h>
-#include "esp_timer.h"
 
-#define TOTAL_IR 5
+int enA = 16, in1 = 27, in2 = 26;   // Motor A
+int enB = 18, in3 = 19, in4 = 23;   // Motor B
 
-const int irPins[TOTAL_IR] = {34, 35, 32, 33, 25};
-const int weights[TOTAL_IR] = {-2, -1, 0, 1, 2};
-
-const int enA = 16;
-const int in1 = 27;
-const int in2 = 26;
-
-const int enB = 18;
-const int in3 = 19;
-const int in4 = 23;
-
-float Kp = 28.0;
-float Ki = 0.0;
-float Kd = 18.0;
-
-float error = 0;
-float previousError = 0;
-float integral = 0;
-float derivative = 0;
-
-int baseLeft = 140;
-int baseRight = 140;
-int maxPWM = 255;
-
-bool startRobot = true;
-bool sensorActiveLow = true;
-
-int64_t lastTime = 0;
-
-void setMotorRaw(int pwmPin, int pin1, int pin2, int speed);
-void setMotor(int leftSpeed, int rightSpeed);
-float readLineError();
-float calculatePID(float dt);
-void stopMotor();
+int freq = 1000, resol = 8;
 
 void setup() {
   Serial.begin(115200);
-  delay(1000);
 
-  pinMode(in1, OUTPUT);
-  pinMode(in2, OUTPUT);
-  pinMode(in3, OUTPUT);
-  pinMode(in4, OUTPUT);
+  pinMode(in1, OUTPUT); pinMode(in2, OUTPUT);
+  pinMode(in3, OUTPUT); pinMode(in4, OUTPUT);
 
-  for (int i = 0; i < TOTAL_IR; i++) {
-    pinMode(irPins[i], INPUT);
-  }
-
-  ledcAttach(enA, 1000, 8);
-  ledcAttach(enB, 1000, 8);
+  ledcAttach(enA, freq, resol);
+  ledcAttach(enB, freq, resol);
 
   ledcWrite(enA, 0);
   ledcWrite(enB, 0);
 
-  stopMotor();
-  lastTime = esp_timer_get_time();
+  delay(1000);
 }
 
 void loop() {
-  int64_t now = esp_timer_get_time();
-  float dt = (now - lastTime) / 1000000.0f;
-  lastTime = now;
+  // Maju
+  digitalWrite(in1, HIGH); digitalWrite(in2, LOW);
+  digitalWrite(in3, HIGH); digitalWrite(in4, LOW);
+  ledcWrite(enA, 180);
+  ledcWrite(enB, 180);
+  delay(3000);
 
-  if (dt <= 0) dt = 0.01;
+  // Stop
+  ledcWrite(enA, 0);
+  ledcWrite(enB, 0);
+  delay(1500);
 
-  if (!startRobot) {
-    stopMotor();
-    delay(10);
-    return;
-  }
+  // Mundur
+  digitalWrite(in1, LOW); digitalWrite(in2, HIGH);
+  digitalWrite(in3, LOW); digitalWrite(in4, HIGH);
+  ledcWrite(enA, 180);
+  ledcWrite(enB, 180);
+  delay(3000);
 
-  error = readLineError();
-  float pid = calculatePID(dt);
-
-  int leftSpeed = (int)(baseLeft - pid);
-  int rightSpeed = (int)(baseRight + pid);
-
-  leftSpeed = constrain(leftSpeed, -maxPWM, maxPWM);
-  rightSpeed = constrain(rightSpeed, -maxPWM, maxPWM);
-
-  setMotor(leftSpeed, rightSpeed);
-
-  Serial.print("Err: ");
-  Serial.print(error);
-  Serial.print(" PID: ");
-  Serial.print(pid);
-  Serial.print(" L: ");
-  Serial.print(leftSpeed);
-  Serial.print(" R: ");
-  Serial.println(rightSpeed);
-
-  delay(10);
-}
-
-float readLineError() {
-  float sum = 0;
-  int count = 0;
-
-  for (int i = 0; i < TOTAL_IR; i++) {
-    int raw = digitalRead(irPins[i]);
-    bool active = sensorActiveLow ? (raw == LOW) : (raw == HIGH);
-
-    if (active) {
-      sum += weights[i];
-      count++;
-    }
-  }
-
-  if (count == 0) {
-    if (previousError > 0) return 2.5;
-    if (previousError < 0) return -2.5;
-    return 0;
-  }
-
-  return sum / count;
-}
-
-float calculatePID(float dt) {
-  integral += error * dt;
-  integral = constrain(integral, -50.0, 50.0);
-
-  derivative = (error - previousError) / dt;
-  float output = (Kp * error) + (Ki * integral) + (Kd * derivative);
-
-  previousError = error;
-  return output;
-}
-
-void setMotorRaw(int pwmPin, int pin1, int pin2, int speed) {
-  speed = constrain(speed, -255, 255);
-
-  if (speed > 0) {
-    digitalWrite(pin1, HIGH);
-    digitalWrite(pin2, LOW);
-    ledcWrite(pwmPin, speed);
-  } else if (speed < 0) {
-    digitalWrite(pin1, LOW);
-    digitalWrite(pin2, HIGH);
-    ledcWrite(pwmPin, -speed);
-  } else {
-    digitalWrite(pin1, LOW);
-    digitalWrite(pin2, LOW);
-    ledcWrite(pwmPin, 0);
-  }
-}
-
-void setMotor(int leftSpeed, int rightSpeed) {
-  setMotorRaw(enA, in1, in2, leftSpeed);
-  setMotorRaw(enB, in3, in4, rightSpeed);
-}
-
-void stopMotor() {
-  setMotor(0, 0);
+  // Stop
+  ledcWrite(enA, 0);
+  ledcWrite(enB, 0);
+  delay(1500);
 }
