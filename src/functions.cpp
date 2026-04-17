@@ -4,6 +4,7 @@
 
 void read_bluetooth() {
 	val = SerialBT.read();
+	Serial.write(val);
 	cnt++;
 	v[cnt] = val;
 	if (cnt == 2) cnt = 0;
