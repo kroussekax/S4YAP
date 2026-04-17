@@ -1,4 +1,5 @@
 #include "functions.h"
+/*
 
 #include "globals.h"
 
@@ -89,3 +90,4 @@ void motor_both_wheel(int s_left, int s_right) {
 	digitalWrite(in1, HIGH); digitalWrite(in2, LOW);
 	digitalWrite(in3, HIGH); digitalWrite(in4, LOW);
 }
+*/
